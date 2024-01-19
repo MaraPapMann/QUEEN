@@ -44,7 +44,7 @@ if not (os.path.exists(os.path.join(proj_path,vic_dir,'checkpoint.pth.tar'))
 # defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
 
 query_list = ['random']
-attack_list = ['naive']
+attack_list = ['ddae']
 defense_list = ['queen']
 
 for policy in query_list:
@@ -96,7 +96,7 @@ for policy in query_list:
             recover_proc=5
             recover_params=f"'table_size:{recover_table_size};concentration_factor:{concentration_factor};recover_proc:{recover_proc};recover_nn:1'"
         else:
-            recover_table_size=1000000
+            recover_table_size=10000
             recover_norm=1
             recover_tolerance=0.01
             concentration_factor=8.0
@@ -238,7 +238,7 @@ for policy in query_list:
             # skip some pairs
             if defense == 'none' and defense_aware==1:
                 continue
-            if attack == 'top1' and defense not in ['rs','am']:
+            if attack == 'top1' and defense not in ['rs','am','queen']:
                 continue
             if policy == 'jbtr3' and defense in ['s4l','smoothing']:
                 continue

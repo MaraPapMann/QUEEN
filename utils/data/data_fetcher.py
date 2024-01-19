@@ -1,7 +1,10 @@
+import sys
+sys.path.append('../..')
 import torch
 from torchvision import transforms, datasets
 from torch.utils.data import Subset, Dataset, DataLoader, TensorDataset
 import random
+from defenses import datasets as DS
 
 
 class DataFetcher():
@@ -14,10 +17,11 @@ class DataFetcher():
     @staticmethod
     def load_dataset(dataset:str, root:str, train:bool, download:bool, resize:int, return_loader:bool=False, **kwargs):
         # Set dataset
+        print(dataset)
         assert dataset in ['mnist', 'emnistdigit', 'emnistletter', 
                         'cifar10', 'CIFAR-10', 'CIFAR10',
-                        'cifar100', 'cifar10ext', 
-                        'cifar100ext', 'fashionmnist', 'gtsrb', 'imagenette'], 'Enter a valid dataset.'
+                        'cifar100', 'CIFAR-100', 'CIFAR100',
+                        'cifar10ext', 'cifar100ext', 'fashionmnist', 'gtsrb', 'imagenette', 'Caltech256'], 'Enter a valid dataset.'
         D = None
 
         # MNIST
@@ -83,7 +87,7 @@ class DataFetcher():
             D = datasets.ImageFolder(root+'/CIFAR10_EXT', transform)
         
         # CIFAR-100
-        if dataset == 'cifar100':
+        if dataset in ['cifar100', 'CIFAR-100', 'CIFAR100']:
             if train:
                 transform = transforms.Compose([
                     transforms.Resize((resize, resize)),
@@ -148,8 +152,29 @@ class DataFetcher():
             else:
                 D = datasets.ImageFolder(root+'/imagenette'+'/val', transform)
         
+        # Caltech256
+        if dataset == 'Caltech256':
+            if train:
+                transform = transforms.Compose([
+                    transforms.RandomResizedCrop(224),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                        std=[0.229, 0.224, 0.225]),
+                    ]),
+                D = DS.Caltech256(True, transform, target_transform=None, download=True)
+            else:
+                transform = transforms.Compose([
+                    transforms.Resize(256),
+                    transforms.CenterCrop(224),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                        std=[0.229, 0.224, 0.225]),
+                ])
+                D = DS.Caltech256(False, transform, target_transform=None, download=True)
+        print(D[0])
         if return_loader:
-            loader = DataLoader(D, kwargs['bs'], kwargs['shuffle'], num_workers=2, pin_memory=True, drop_last=kwargs['drop_last'])
+            loader = DataLoader(D, kwargs['bs'], kwargs['shuffle'], pin_memory=True, drop_last=kwargs['drop_last'])
             return loader
         else:
             return D

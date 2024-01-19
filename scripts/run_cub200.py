@@ -214,6 +214,23 @@ for policy in query_list:
                 # Parameters to defense strategy, provided as a key:value pair string. 
                 defense_args=f"'out_path:{out_dir}'"
             
+            elif defense == 'queen':
+                strat='queen'
+                # Output path to attacker's model
+                r=0.005
+                threshold=0.2
+                num_shadows = 5
+                k=1
+                in_dim=2048
+                out_dim=2
+                num_layers=5
+                step_down=4
+                shadow_arch='ResNet18'
+                host_network = 'resnet50'
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{threshold}_k{k}"
+                # Parameters to defense strategy, provided as a key:value pair string. 
+                defense_args=f"'out_path:{out_dir};num_shadows:{num_shadows};host_network:{host_network};r:{r};threshold:{threshold};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};'"
+            
             # skip some pairs
             if defense == 'none' and defense_aware==1:
                 continue

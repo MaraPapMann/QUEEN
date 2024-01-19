@@ -16,13 +16,14 @@ from .blackbox import Blackbox
 import utils.operator as opt
 from defenses import datasets
 from torch.utils.data import DataLoader, TensorDataset
-from defenses.models.mapping_net import FeatMapNet
+from defenses.models.mapping_net import feature_mapping_net
 from utils.lossfunc import SupervisedContrastiveLoss
 from matplotlib import pyplot as plt
 import torch.nn.functional as F
 from utils.classifier import ClassifierTrainer
 from utils.data import DataFetcher
 from defenses import config as CFG
+from torch.autograd import detect_anomaly
 
 
 class Queen(Blackbox):
@@ -30,7 +31,6 @@ class Queen(Blackbox):
                         in_dim:int, out_dim:int, num_layers:int, step_down:int, 
                         shadow_arch:str, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        print(kwargs)
 
 
         '''Set device'''
@@ -43,8 +43,9 @@ class Queen(Blackbox):
         self.r = r
         self.threshold = threshold
         self.k = k  # Number of shadow models used in each falsified softmax generation
-        self.num_shadows = 10
+        self.num_shadows = kwargs['num_shadows']
         assert self.k <= self.num_shadows, 'k must be less or equal to the number of shadow models!'
+        self.host_network = kwargs['host_network']
         self.out_dir=kwargs['out_path']
         self.counter_within = 0
         self.counter_reverse = 0
@@ -58,11 +59,12 @@ class Queen(Blackbox):
 
 
         '''Check training features'''
-        self.pth_feature_dataset = opt.os.join(self.out_dir, 'training_feats/training_feats.pt')
+        self.pth_feature_dataset = opt.os.join(self.model_dir, 'training_feats/training_feats.pt')
         if opt.os.pth_exist(self.pth_feature_dataset):
             print('=> Loading the existing training features...')
             to_load = torch.load(self.pth_feature_dataset)
             features, labels = to_load['features'], to_load['labels']
+            self.feature_dataset = TensorDataset(features, labels)
             del to_load
         else:
             print('=> No training features. Extracting training features...')
@@ -88,7 +90,7 @@ class Queen(Blackbox):
 
         
         '''Get feature centers'''
-        self.pth_feature_centers = opt.os.join(self.out_dir, 'feature_centers/feature_centers.pt')
+        self.pth_feature_centers = opt.os.join(self.model_dir, 'feature_centers/feature_centers.pt')
         if opt.os.pth_exist(self.pth_feature_centers):
             print('=> Loading feature centers...')
             self.centers = torch.load(self.pth_feature_centers)
@@ -99,8 +101,8 @@ class Queen(Blackbox):
         
 
         '''Check mapping network'''
-        self.mapping_net = FeatMapNet(in_dim=in_dim, out_dim=out_dim, num_layers=num_layers, step_down=step_down).to(self.device)
-        self.pth_mapping_net = opt.os.join(self.out_dir, 'mapping_net/mapping_net.pt')
+        self.mapping_net = feature_mapping_net(self.host_network).to(self.device)
+        self.pth_mapping_net = opt.os.join(self.model_dir, 'mapping_net/mapping_net.pt')
         if opt.os.pth_exist(self.pth_mapping_net):
             print('=> Loading the mapping net...')
             self.mapping_net.load_state_dict(torch.load(self.pth_mapping_net))
@@ -108,11 +110,11 @@ class Queen(Blackbox):
             print('=> No mapping net. Training a mapping net from scratches...')
             opt.os.mkdir(opt.os.get_dir(self.pth_mapping_net))
             self.mapping_net.train()
-            num_ep = 100
-            bs = 10000
-            lr = 0.01
-            beta1, beta2 = 0.9, 0.99
-            step_size, gamma = 20, 0.5
+            num_ep = 20
+            bs = 5000
+            lr = 0.005
+            beta1, beta2 = 0.5, 0.8
+            step_size, gamma = 100, 1
             optimizer = torch.optim.SGD(self.mapping_net.parameters(), lr, momentum=0.9, weight_decay=1e-4)
             # optimizer = torch.optim.Adam(self.mapping_net.parameters(), lr, betas=(beta1,beta2))
             scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size, gamma)
@@ -123,6 +125,7 @@ class Queen(Blackbox):
                 pbar.set_description('Ep: %d, Loss: nan'%ep)
                 for xs, ys in pbar:
                     xs = xs.to(self.device)
+                    print(xs)
                     ys = ys.to(self.device)
 
                     self.mapping_net.zero_grad()
@@ -142,12 +145,13 @@ class Queen(Blackbox):
             with torch.no_grad():
                 self.mapping_net.eval()
                 feats_2d, labels = None, None
-                feat_loader = DataLoader(self.feature_dataset, 1000)
+                feat_loader = DataLoader(self.feature_dataset, 1000, True)
                 for xs, ys in feat_loader:
                     xs = xs.to(self.device)
                     xs = self.mapping_net(xs)
                     feats_2d = opt.tensor.cat_tensors(feats_2d, xs)
                     labels = opt.tensor.cat_tensors(labels, ys)
+                    break
             feats_2d = feats_2d.cpu()
             labels = labels.cpu()
             plt.scatter(feats_2d[:, 0], feats_2d[:, 1], 1, labels)
@@ -158,14 +162,14 @@ class Queen(Blackbox):
             
             print('=> Saving the 2D features...')
             to_save = {'features':feats_2d, 'labels':labels}
-            self.pth_features_2d = opt.os.join(self.out_dir, 'features_2d/features_2d.pt')
+            self.pth_features_2d = opt.os.join(self.model_dir, 'features_2d/features_2d.pt')
             opt.os.mkdir(opt.os.get_dir(self.pth_features_2d))
             torch.save(to_save, self.pth_features_2d)
             del to_save, feats_2d, labels
         
         
         '''Sensitivity Analysis'''
-        self.pth_sa_res = opt.os.join(self.out_dir, 'sensitivity_analysis/sensitivity_analysis.pt')
+        self.pth_sa_res = opt.os.join(self.model_dir, 'sensitivity_analysis/sensitivity_analysis.pt')
         if opt.os.pth_exist(self.pth_sa_res):
             print('=> Loading the sensitivity analysis results...')
             sa_res = torch.load(self.pth_sa_res)
@@ -174,23 +178,25 @@ class Queen(Blackbox):
             del sa_res
         else:
             print('=> No sensitivity analysis results. Performing sensitivity analysis...')
-            assert opt.os.pth_exist(opt.os.join(self.out_dir, 'features_2d/features_2d.pt')), '2D features not exist!'
-            this_dict = torch.load(opt.os.join(self.out_dir, 'features_2d/features_2d.pt'))
+            assert opt.os.pth_exist(opt.os.join(self.model_dir, 'features_2d/features_2d.pt')), '2D features not exist!'
+            this_dict = torch.load(opt.os.join(self.model_dir, 'features_2d/features_2d.pt'))
             feats_2d, labels = this_dict['features'], this_dict['labels']
             self.centers_2d, self.avgdist = self.sensitivity_analysis(feats_2d, labels, kwargs['num_classes'])
-            sa_res_to_save = {'centers':self.centers, 'avgdist':self.avgdist}
+            sa_res_to_save = {'centers':self.centers_2d, 'avgdist':self.avgdist}
             opt.os.mkdir(opt.os.get_dir(self.pth_sa_res))
             torch.save(sa_res_to_save, self.pth_sa_res)
             del this_dict, feats_2d, labels, sa_res_to_save
         
         
         '''Shadow models'''
-        self.dir_shadow = opt.os.join(self.out_dir, 'shadow_models')
+        self.dir_shadow = opt.os.join(self.model_dir, 'shadow_models')
         self.lst_pth_shadows = opt.os.get_files(self.dir_shadow, '.pt')
         self.shadow_models = []
         if opt.os.pth_exist(self.dir_shadow) and len(self.lst_pth_shadows) != 0:
             print('=> Loading shadow models...')
-            for pth in self.lst_pth_shadows:
+            for i, pth in enumerate(self.lst_pth_shadows):
+                if i >= self.num_shadows-1:
+                    break
                 trainer = ClassifierTrainer(shadow_arch, self.num_classes, 'sgd', 'steplr', 0.01, 'crossentropy', '')
                 trainer.classifier.load_state_dict(torch.load(pth))
                 self.shadow_models.append(trainer.classifier)
@@ -200,8 +206,11 @@ class Queen(Blackbox):
             dir_temp = opt.os.join(self.dir_shadow, 'temp')
             for i in range(self.num_shadows):
                 trainer = ClassifierTrainer(shadow_arch, self.num_classes, 'sgd', 'steplr', 0.01, 'crossentropy', dir_temp)
-                fetcher = DataFetcher()
-                train_set = fetcher.load_dataset(self.dataset_name, CFG.DATASET_ROOT, True, True, 32)
+                # fetcher = DataFetcher()
+                # train_set = fetcher.load_dataset(self.dataset_name, CFG.DATASET_ROOT, True, True, 32)
+                modelfamily = datasets.dataset_to_modelfamily[self.dataset_name]
+                transform = datasets.modelfamily_to_transforms[modelfamily]['train']
+                train_set = datasets.__dict__[self.dataset_name](train=True, transform=transform)
                 train_loader = DataLoader(train_set, 256, True)
                 trainer.train_classifier(1, train_loader, None)
                 torch.save(trainer.classifier.state_dict(), opt.os.join(self.dir_shadow, f'{shadow_arch}_{i}_.pt'))
@@ -245,6 +254,7 @@ class Queen(Blackbox):
         '''
         @Desc: Get the feature-center distance
         '''
+        # print(feat2d.shape, center.shape)
         fc_dist = self.get_eu_dist(feat2d, center)
         return fc_dist
     
@@ -452,6 +462,8 @@ class Queen(Blackbox):
                 farthest_center = self.find_farthest_center(feat, self.centers)
                 cur_softmax_falsified = self.perturb_sm(feat.unsqueeze(0), farthest_center, self.model)
                 softmax_falsified[i] = cur_softmax_falsified
+        
+        self.call_count += query_input.shape[0]
         
         print('====== Cumulative Report: Query: %d, Within: %d, Recorded: %d, Reversed: %d ======'%(self.counter_query, self.counter_within, self.counter_record, self.counter_reverse))
         

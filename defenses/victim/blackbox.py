@@ -19,7 +19,7 @@ from defenses import datasets
 
 class Blackbox(object):
     def __init__(self, model, device=None, output_type='probs', topk=None, rounding=None, dataset_name=None,
-                 modelfamily=None, model_arch=None, num_classes=None, model_dir=None, out_path=None, log_prefix=''):
+                 modelfamily=None, model_arch=None, num_classes=None, model_dir=None, out_path=None, log_prefix='', **kwargs):
         print('=> Blackbox ({})'.format([model.__class__, device, output_type, topk, rounding]))
         self.device = torch.device('cuda') if device is None else device
         self.output_type = output_type
@@ -58,7 +58,7 @@ class Blackbox(object):
             self.log_path = None
 
     @classmethod
-    def from_modeldir(cls, model_dir, device=None, output_type='probs', **kwargs):
+    def from_modeldir(cls, model_dir, device=None, output_type='probs',*args, **kwargs):
         device = torch.device('cuda') if device is None else device
 
         # What was the model architecture used by this model?

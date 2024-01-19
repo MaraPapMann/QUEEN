@@ -39,7 +39,8 @@ if not (os.path.exists(os.path.join(proj_path,vic_dir,'checkpoint.pth.tar'))
 
 query_list = ['random','jbtr3']
 attack_list = ['naive','top1','s4l','smoothing','ddae','ddae+','bayes']
-defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
+# defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
+defense_list = ['queen']
 
 for policy in query_list:
     if policy == 'jbtr3':
@@ -65,7 +66,7 @@ for policy in query_list:
             shadowset="TinyImageNet200"
             num_classes=100
             shadow_path=f"models/victim/{p_v}-{shadow_model}-shadow"
-            recover_table_size=1000000
+            recover_table_size=10000
             recover_proc=5
             recover_params=f"'table_size:{recover_table_size};shadow_path:{shadow_path};recover_proc:{recover_proc};recover_nn:1'"
             generate_shadow=False
@@ -214,10 +215,25 @@ for policy in query_list:
                 # Parameters to defense strategy, provided as a key:value pair string. 
                 defense_args=f"'out_path:{out_dir}'"
             
+            elif defense == 'queen':
+                strat='queen'
+                # Output path to attacker's model
+                r=0.005
+                threshold=0.2
+                k=5
+                in_dim=512
+                out_dim=2
+                num_layers=4
+                step_down=4
+                shadow_arch='VGG11-BN'
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{threshold}_k{k}"
+                # Parameters to defense strategy, provided as a key:value pair string. 
+                defense_args=f"'out_path:{out_dir};r:{r};threshold:{threshold};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};'"
+            
             # skip some pairs
             if defense == 'none' and defense_aware==1:
                 continue
-            if attack == 'top1' and defense not in ['rs','am']:
+            if attack == 'top1' and defense not in ['rs','am', 'queen']:
                 continue
             if policy == 'jbtr3' and defense in ['s4l','smoothing']:
                 continue

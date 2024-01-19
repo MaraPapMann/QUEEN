@@ -78,6 +78,7 @@ def main():
     train_transform = datasets.modelfamily_to_transforms[modelfamily]['train']
     test_transform = datasets.modelfamily_to_transforms[modelfamily]['test']
     trainset = dataset(train=True, transform=train_transform,download=True)
+    print(trainset)
     testset = dataset(train=False, transform=test_transform,download=True)
     num_classes = len(trainset.classes)
     params['num_classes'] = num_classes

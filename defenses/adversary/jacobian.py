@@ -615,6 +615,8 @@ def main():
         BB = ReverseSigmoid_WB
     elif defense_type in ['none', 'topk', 'rounding']:
         BB = Blackbox
+    elif defense_type == 'queen':
+        BB = Queen
     else:
         raise ValueError('Unrecognized blackbox type')
     defense_kwargs = knockoff_utils.parse_defense_kwargs(params['defense_args'])

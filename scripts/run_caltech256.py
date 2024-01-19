@@ -1,3 +1,5 @@
+import sys
+sys.path.append('..')
 import os
 script_path = os.path.abspath(__file__)
 proj_path = os.path.dirname(os.path.dirname(script_path))
@@ -20,12 +22,12 @@ vic_dir=f"models/victim/{p_v}-{f_v}-train-nodefense"
 ### No. of images queried by the attacker. With 60k, attacker obtains 99.05% test accuracy on MNIST at eps=0.0.
 budget=50000
 ### Batch size of queries to process for the attacker
-ori_batch_size=32
+ori_batch_size=16
 lr=0.01
 lr_step=10
 lr_gamma=0.5
 epochs=30
-training_batch_size=32
+training_batch_size=16
 ### pretrained model
 pretrained="imagenet"
 
@@ -37,9 +39,13 @@ if not (os.path.exists(os.path.join(proj_path,vic_dir,'checkpoint.pth.tar'))
         raise RuntimeError("Fail to generate target model!")
     
 
-query_list = ['random','jbtr3']
-attack_list = ['naive','top1','s4l','smoothing','ddae','ddae+','bayes']
-defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
+# query_list = ['random','jbtr3']
+# attack_list = ['naive','top1','s4l','smoothing','ddae','ddae+','bayes']
+# defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
+
+query_list = ['jbtr3']
+attack_list = ['top1','ddae','bayes']
+defense_list = ['queen']
 
 for policy in query_list:
     if policy == 'jbtr3':
@@ -91,10 +97,10 @@ for policy in query_list:
             recover_params=f"'table_size:{recover_table_size};concentration_factor:{concentration_factor};recover_proc:{recover_proc};recover_nn:1'"
         else:
             recover_table_size=1000000
-            recover_norm=1
+            recover_norm=5
             recover_tolerance=0.01
             concentration_factor=8.0
-            recover_proc=5
+            recover_proc=1
             recover_params=f"'table_size:{recover_table_size};recover_norm:{recover_norm};tolerance:{recover_tolerance};concentration_factor:{concentration_factor};recover_proc:{recover_proc}'"
 
         ## semisupervised setting
@@ -213,6 +219,23 @@ for policy in query_list:
                 out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/modelguards/eps{quantize_epsilon}"
                 # Parameters to defense strategy, provided as a key:value pair string. 
                 defense_args=f"'out_path:{out_dir}'"
+
+            elif defense == 'queen':
+                strat='queen'
+                # Output path to attacker's model
+                r=0.005
+                threshold=0.2
+                num_shadows = 5
+                k=1
+                in_dim=2048
+                out_dim=2
+                num_layers=5
+                step_down=4
+                shadow_arch='ResNet18'
+                host_network = 'resnet50'
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{threshold}_k{k}"
+                # Parameters to defense strategy, provided as a key:value pair string. 
+                defense_args=f"'out_path:{out_dir};num_shadows:{num_shadows};host_network:{host_network};r:{r};threshold:{threshold};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};'"
             
             # skip some pairs
             if defense == 'none' and defense_aware==1:

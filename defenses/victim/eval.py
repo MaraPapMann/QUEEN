@@ -108,6 +108,7 @@ def main():
     transform = datasets.modelfamily_to_transforms[modelfamily]['test']
     testset = datasets.__dict__[testset_name](train=False, transform=transform)
     print('=> Evaluating on {} ({} samples)'.format(testset_name, len(testset)))
+    print(testset)
 
     # ----------- Evaluate
     batch_size = params['batch_size']

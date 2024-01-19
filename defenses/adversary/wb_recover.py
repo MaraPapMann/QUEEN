@@ -52,7 +52,7 @@ class Recover_NN(nn.Module):
 
 class Table_Recover():
     max_sample_size=5000000
-    def __init__(self,blackbox,table_size=1000000,batch_size=1,epsilon=None,perturb_norm=1,recover_mean=True,recover_norm=2,tolerance=1e-4,concentration_factor=4.0,shadow_path=None,recover_nn=False,recover_proc=1):
+    def __init__(self,blackbox,table_size=10000,batch_size=1,epsilon=None,perturb_norm=1,recover_mean=True,recover_norm=2,tolerance=1e-4,concentration_factor=4.0,shadow_path=None,recover_nn=False,recover_proc=1):
         self.table_size = table_size
         self.blackbox = blackbox
         self.num_classes = self.blackbox.num_classes
