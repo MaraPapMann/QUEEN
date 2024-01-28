@@ -1,5 +1,4 @@
 '''
-@Author: M.H.C.
 @Desc: An argument processor that saves and loads the argument in .json format.
 '''
 from typing import *

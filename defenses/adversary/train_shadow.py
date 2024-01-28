@@ -16,7 +16,6 @@ import torch
 
 from torch.utils.data import Subset
 
-sys.path.append(os.getcwd())
 import defenses.config as cfg
 from defenses import datasets
 import defenses.utils.model as model_utils

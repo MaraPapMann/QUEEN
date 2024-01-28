@@ -1,31 +1,32 @@
+import sys
 import os
 script_path = os.path.abspath(__file__)
 proj_path = os.path.dirname(os.path.dirname(script_path))
 
-################################ CUBS200 ################################
+################################ CIFAR10 ################################
 ### We currently only support single GPU usage. You can use this to specify which GPU you want to use
 dev_id=0
 ### p_v = victim model dataset
-p_v="CUBS200"
+p_v="CIFAR10"
 ### f_v = architecture of victim model
-f_v="resnet50"
+f_v="vgg16_bn"
 ### queryset = p_a = image pool of the attacker 
-queryset="ImageNet1k"
+queryset="TinyImageNet200"
 ### oeset = X_{OE} = outlier exposure dataset (Indoor67, SVHN)
-oeset="Indoor67"
+oeset="SVHN"
 ### lambda of OE
 oe_lamb=1.0
 ### Path to victim model's directory (the one downloded earlier)
-vic_dir=f"models/victim/{p_v}-{f_v}-train-nodefense"
+vic_dir=f"experiment/victim/{p_v}-{f_v}-train-nodefense"
 ### No. of images queried by the attacker. With 60k, attacker obtains 99.05% test accuracy on MNIST at eps=0.0.
 budget=50000
 ### Batch size of queries to process for the attacker
-ori_batch_size=32
-lr=0.01
+ori_batch_size=256
+lr=0.1
 lr_step=10
 lr_gamma=0.5
-epochs=30
-training_batch_size=32
+epochs=10
+training_batch_size=128
 ### pretrained model
 pretrained="imagenet"
 
@@ -39,7 +40,7 @@ if not (os.path.exists(os.path.join(proj_path,vic_dir,'checkpoint.pth.tar'))
 
 query_list = ['random','jbtr3']
 attack_list = ['naive','top1','s4l','smoothing','ddae','ddae+','bayes']
-defense_list = ['queen']
+defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s','queen']
 
 for policy in query_list:
     if policy == 'jbtr3':
@@ -62,9 +63,9 @@ for policy in query_list:
         if attack == 'ddae':
             shadow_model="alexnet"
             num_shadows=20
-            shadowset="ImageNet1k"
-            num_classes=200
-            shadow_path=f"models/victim/{p_v}-{shadow_model}-shadow"
+            shadowset="TinyImageNet200"
+            num_classes=10
+            shadow_path=f"experiment/victim/{p_v}-{shadow_model}-shadow"
             recover_table_size=1000000
             recover_proc=5
             recover_params=f"'table_size:{recover_table_size};shadow_path:{shadow_path};recover_proc:{recover_proc};recover_nn:1'"
@@ -90,7 +91,7 @@ for policy in query_list:
             recover_proc=5
             recover_params=f"'table_size:{recover_table_size};concentration_factor:{concentration_factor};recover_proc:{recover_proc};recover_nn:1'"
         else:
-            recover_table_size=1000000
+            recover_table_size=10000
             recover_norm=1
             recover_tolerance=0.01
             concentration_factor=8.0
@@ -135,17 +136,17 @@ for policy in query_list:
                 ## None
                 strat="none"
                 # Output path to attacker's model
-                out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/none"
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/none"
                 # Parameters to defense strategy, provided as a key:value pair string. 
                 defense_args=f"'out_path:{out_dir}'"
             
             elif defense == 'rs':
                 ## reverse sigmoid
                 strat="reverse_sigmoid"
-                beta=0.011
+                beta=0.2
                 gamma=0.2
                 # Output path to attacker's model
-                out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/revsig/beta{beta}-gamma{gamma}"
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/revsig/beta{beta}-gamma{gamma}"
                 defense_args=f"'beta:{beta};gamma:{gamma};out_path:{out_dir}'"
             
             elif defense == 'mad':
@@ -159,9 +160,9 @@ for policy in query_list:
                 # Initialization to the defender's surrogate model. 'scratch' refers to random initialization.
                 proxystate="scratch"
                 # Path to surrogate model
-                proxydir=f"models/victim/{p_v}-{f_v}-train-nodefense-{proxystate}-advproxy"
+                proxydir=f"experiment/victim/{p_v}-{f_v}-train-nodefense-{proxystate}-advproxy"
                 # Output path to attacker's model
-                out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/mad_{oracle}_{ydist}/eps{eps}-proxy_{proxystate}"
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/mad_{oracle}_{ydist}/eps{eps}-proxy_{proxystate}"
                 # Parameters to defense strategy, provided as a key:value pair string. 
                 defense_args=f"'epsilon:{eps};batch_constraint:0;objmax:1;oracle:{oracle};ydist:{ydist};model_adv_proxy:{proxydir};out_path:{out_dir}'"
                 if not os.path.exists(os.path.join(proj_path,proxydir,"checkpoint.pth.tar")):
@@ -174,7 +175,7 @@ for policy in query_list:
                 strat="am"
                 defense_lv=0.3
                 # Output path to attacker's model
-                out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/am/tau{defense_lv}"
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/am/tau{defense_lv}"
                 defense_args=f"'defense_level:{defense_lv};out_path:{out_dir}'"
             
             elif defense == 'top1':
@@ -183,14 +184,14 @@ for policy in query_list:
                 topk=1
                 rounding=0
                 # Output path to attacker's model
-                out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/top{topk}"
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/top{topk}"
                 defense_args=f"'topk:{topk};rounding:{rounding};out_path:{out_dir}'"
 
             elif defense == 'rounding':
                 strat="rounding"
                 rounding=1
                 # Output path to attacker's model
-                out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/rounding{rounding}"
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/rounding{rounding}"
                 defense_args=f"'rounding:{rounding};out_path:{out_dir}'"
 
             elif defense == 'modelguard_w':
@@ -203,14 +204,14 @@ for policy in query_list:
                 # Perturbation norm
                 eps=1.0
                 # Output path to attacker's model
-                out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/modelguardw/eps{eps}"
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/modelguardw/eps{eps}"
                 # Parameters to defense strategy, provided as a key:value pair string. 
                 defense_args=f"'epsilon:{eps};batch_constraint:{batch_constraint};ydist:{ydist};out_path:{out_dir}'"
             
             elif defense == 'modelguard_s':
                 strat="none"
                 # Output path to attacker's model
-                out_dir=f"models/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/modelguards/eps{quantize_epsilon}"
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/modelguards/eps{quantize_epsilon}"
                 # Parameters to defense strategy, provided as a key:value pair string. 
                 defense_args=f"'out_path:{out_dir}'"
             
@@ -218,23 +219,36 @@ for policy in query_list:
                 strat='queen'
                 # Output path to attacker's model
                 r=0.005
-                threshold=0.2
-                num_shadows = 5
-                k=1
-                in_dim=2048
+                t=0.2
+                k=5
+                in_dim=512
                 out_dim=2
-                num_layers=5
+                num_layers=4
                 step_down=4
-                shadow_arch='ResNet18'
-                host_network = 'resnet50'
-                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{threshold}_k{k}"
-                # Parameters to defense strategy, provided as a key:value pair string. 
-                defense_args=f"'out_path:{out_dir};num_shadows:{num_shadows};host_network:{host_network};r:{r};threshold:{threshold};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};'"
+                shadow_arch='VGG11-BN'
+                num_shadows=10
+                host_network='vgg16-bn'
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{t}_k{k}"
+        # Parameters to defense strategy, provided as a key:value pair string. 
+                defense_args=f"'out_path:{out_dir};r:{r};threshold:{t};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};num_shadows:{num_shadows};host_network:{host_network}'"
+
+                command_transfer = f"python defenses/adversary/transfer.py {policy} {vic_dir} {strat} {defense_args} --out_dir {out_dir} --batch_size {batch_size} -d {dev_id} --queryset {queryset} --budget {budget} --quantize {quantize} --quantize_args {quantize_args} --defense_aware {defense_aware} --recover_args {recover_params} --hardlabel {hardlabel} --train_transform {transform} --qpi {qpi}"
+                                
+                # (adversary) train kickoffnet and evaluate
+                command_train = f"python defenses/adversary/train.py {out_dir} {f_v} {p_v} --budgets {budget} -e {epochs} -b {training_batch_size} --lr {lr} --lr_step {lr_step} --lr_gamma {lr_gamma} -d {dev_id} -w 4 --pretrained {pretrained} --vic_dir {vic_dir} --semitrainweight {semi_train_weight} --semidataset {semi_dataset}"
+
+                status = os.system(command_transfer)
+                if status != 0:
+                    if not os.path.exists(os.path.join(out_dir,'params_transfer.json')):
+                        raise RuntimeError("Fail to generate transfer set with attack {} and defense {}".format('random_'+attack,defense))
+                status = os.system(command_train)
+                if status != 0:
+                    raise RuntimeError("Fail to train the substitute model with attack {} and defense {}".format('random_'+attack,defense))
             
             # skip some pairs
             if defense == 'none' and defense_aware==1:
                 continue
-            if attack == 'top1' and defense not in ['rs','am']:
+            if attack == 'top1' and defense not in ['rs','am','queen']:
                 continue
             if policy == 'jbtr3' and defense in ['s4l','smoothing']:
                 continue

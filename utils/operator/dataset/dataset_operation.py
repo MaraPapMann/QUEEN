@@ -1,5 +1,4 @@
 '''
-Author: M.H.C.
 Desc: Dataset Operation for Neural Network
 Last upate: 20/12/2023
 '''

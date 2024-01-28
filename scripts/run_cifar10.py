@@ -26,7 +26,7 @@ ori_batch_size=256
 lr=0.1
 lr_step=10
 lr_gamma=0.5
-epochs=30
+epochs=10
 training_batch_size=128
 ### pretrained model
 pretrained="imagenet"
@@ -44,8 +44,8 @@ if not (os.path.exists(os.path.join(proj_path,vic_dir,'checkpoint.pth.tar'))
 # defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
 
 query_list = ['random']
-attack_list = ['ddae']
-defense_list = ['queen']
+attack_list = ['naive']
+defense_list = ['rs','mad','am','top1','modelguard_w']
 
 for policy in query_list:
     if policy == 'jbtr3':
@@ -223,17 +223,35 @@ for policy in query_list:
             elif defense == 'queen':
                 strat='queen'
                 # Output path to attacker's model
-                r=0.005
-                threshold=0.2
+                lst_r=[0.001,0.005,0.01,0.05,0.1]
+                lst_t=[0.2]
+                # threshold=0.2
                 k=5
                 in_dim=512
                 out_dim=2
                 num_layers=4
                 step_down=4
                 shadow_arch='VGG11-BN'
-                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{threshold}_k{k}"
+                num_shadows=10
+                host_network='vgg16-bn'
+                for r in lst_r:
+                    for t in lst_t:
+                        out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{t}_k{k}"
                 # Parameters to defense strategy, provided as a key:value pair string. 
-                defense_args=f"'out_path:{out_dir};r:{r};threshold:{threshold};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};'"
+                        defense_args=f"'out_path:{out_dir};r:{r};threshold:{t};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};num_shadows:{num_shadows};host_network:{host_network}'"
+
+                        command_transfer = f"python defenses/adversary/transfer.py {policy} {vic_dir} {strat} {defense_args} --out_dir {out_dir} --batch_size {batch_size} -d {dev_id} --queryset {queryset} --budget {budget} --quantize {quantize} --quantize_args {quantize_args} --defense_aware {defense_aware} --recover_args {recover_params} --hardlabel {hardlabel} --train_transform {transform} --qpi {qpi}"
+                                        
+                        # (adversary) train kickoffnet and evaluate
+                        command_train = f"python defenses/adversary/train.py {out_dir} {f_v} {p_v} --budgets {budget} -e {epochs} -b {training_batch_size} --lr {lr} --lr_step {lr_step} --lr_gamma {lr_gamma} -d {dev_id} -w 4 --pretrained {pretrained} --vic_dir {vic_dir} --semitrainweight {semi_train_weight} --semidataset {semi_dataset}"
+
+                        status = os.system(command_transfer)
+                        if status != 0:
+                            if not os.path.exists(os.path.join(out_dir,'params_transfer.json')):
+                                raise RuntimeError("Fail to generate transfer set with attack {} and defense {}".format('random_'+attack,defense))
+                        status = os.system(command_train)
+                        if status != 0:
+                            raise RuntimeError("Fail to train the substitute model with attack {} and defense {}".format('random_'+attack,defense))
             
             # skip some pairs
             if defense == 'none' and defense_aware==1:
@@ -243,28 +261,31 @@ for policy in query_list:
             if policy == 'jbtr3' and defense in ['s4l','smoothing']:
                 continue
             
-            command_eval = f"python defenses/victim/eval.py {vic_dir} {strat} {defense_args} --quantize {quantize} --quantize_args {quantize_args} --out_dir {out_dir} --batch_size {batch_size} -d {dev_id}"
-            status = os.system(command_eval)
-            if status != 0:
-                raise RuntimeError("Fail to evaluate the protected accuracy for defense {}".format(defense))
-            if policy == 'random':
-                # (adversary) generate transfer dataset (only when policy=random)
-                command_transfer = f"python defenses/adversary/transfer.py {policy} {vic_dir} {strat} {defense_args} --out_dir {out_dir} --batch_size {batch_size} -d {dev_id} --queryset {queryset} --budget {budget} --quantize {quantize} --quantize_args {quantize_args} --defense_aware {defense_aware} --recover_args {recover_params} --hardlabel {hardlabel} --train_transform {transform} --qpi {qpi}"
-                                        
-                # (adversary) train kickoffnet and evaluate
-                command_train = f"python defenses/adversary/train.py {out_dir} {f_v} {p_v} --budgets {budget} -e {epochs} -b {training_batch_size} --lr {lr} --lr_step {lr_step} --lr_gamma {lr_gamma} -d {dev_id} -w 4 --pretrained {pretrained} --vic_dir {vic_dir} --semitrainweight {semi_train_weight} --semidataset {semi_dataset}"
+            if defense == 'queen':
+                pass
+            else:
+                command_eval = f"python defenses/victim/eval.py {vic_dir} {strat} {defense_args} --quantize {quantize} --quantize_args {quantize_args} --out_dir {out_dir} --batch_size {batch_size} -d {dev_id}"
+                status = os.system(command_eval)
+                if status != 0:
+                    raise RuntimeError("Fail to evaluate the protected accuracy for defense {}".format(defense))
+                if policy == 'random':
+                    # (adversary) generate transfer dataset (only when policy=random)
+                    command_transfer = f"python defenses/adversary/transfer.py {policy} {vic_dir} {strat} {defense_args} --out_dir {out_dir} --batch_size {batch_size} -d {dev_id} --queryset {queryset} --budget {budget} --quantize {quantize} --quantize_args {quantize_args} --defense_aware {defense_aware} --recover_args {recover_params} --hardlabel {hardlabel} --train_transform {transform} --qpi {qpi}"
+                                            
+                    # (adversary) train kickoffnet and evaluate
+                    command_train = f"python defenses/adversary/train.py {out_dir} {f_v} {p_v} --budgets {budget} -e {epochs} -b {training_batch_size} --lr {lr} --lr_step {lr_step} --lr_gamma {lr_gamma} -d {dev_id} -w 4 --pretrained {pretrained} --vic_dir {vic_dir} --semitrainweight {semi_train_weight} --semidataset {semi_dataset}"
 
-                status = os.system(command_transfer)
-                if status != 0:
-                    if not os.path.exists(os.path.join(out_dir,'params_transfer.json')):
-                        raise RuntimeError("Fail to generate transfer set with attack {} and defense {}".format('random_'+attack,defense))
-                status = os.system(command_train)
-                if status != 0:
-                    raise RuntimeError("Fail to train the substitute model with attack {} and defense {}".format('random_'+attack,defense))
-            elif policy == 'jbtr3':
-                # (adversary) Use jbda-tr as attack policy
-                command_train = f"python defenses/adversary/jacobian.py {policy} {vic_dir} {strat} {defense_args} --quantize {quantize} --quantize_args {quantize_args} --defense_aware {defense_aware} --recover_args {recover_params} --hardlabel {hardlabel} --model_adv {f_v} --pretrained {pretrained} --out_dir {out_dir} --testdataset {p_v} -d {dev_id} --queryset {queryset} --query_batch_size {batch_size} --budget {budget} -e {epochs} -b {training_batch_size} --lr {lr} --lr_step {lr_step} --lr_gamma {lr_gamma} --seedsize {seedsize} --epsilon {jb_epsilon} --T {T}"
-                status = os.system(command_train)
-                if status != 0:
-                    if not os.path.exists(os.path.join(out_dir,'params_transfer.json')):
-                        raise RuntimeError("Fail to train the substitute model with attack {} and defense {}".format('jbtr3_'+attack,defense))
+                    status = os.system(command_transfer)
+                    if status != 0:
+                        if not os.path.exists(os.path.join(out_dir,'params_transfer.json')):
+                            raise RuntimeError("Fail to generate transfer set with attack {} and defense {}".format('random_'+attack,defense))
+                    status = os.system(command_train)
+                    if status != 0:
+                        raise RuntimeError("Fail to train the substitute model with attack {} and defense {}".format('random_'+attack,defense))
+                elif policy == 'jbtr3':
+                    # (adversary) Use jbda-tr as attack policy
+                    command_train = f"python defenses/adversary/jacobian.py {policy} {vic_dir} {strat} {defense_args} --quantize {quantize} --quantize_args {quantize_args} --defense_aware {defense_aware} --recover_args {recover_params} --hardlabel {hardlabel} --model_adv {f_v} --pretrained {pretrained} --out_dir {out_dir} --testdataset {p_v} -d {dev_id} --queryset {queryset} --query_batch_size {batch_size} --budget {budget} -e {epochs} -b {training_batch_size} --lr {lr} --lr_step {lr_step} --lr_gamma {lr_gamma} --seedsize {seedsize} --epsilon {jb_epsilon} --T {T}"
+                    status = os.system(command_train)
+                    if status != 0:
+                        if not os.path.exists(os.path.join(out_dir,'params_transfer.json')):
+                            raise RuntimeError("Fail to train the substitute model with attack {} and defense {}".format('jbtr3_'+attack,defense))

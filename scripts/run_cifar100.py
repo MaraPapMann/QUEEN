@@ -37,10 +37,12 @@ if not (os.path.exists(os.path.join(proj_path,vic_dir,'checkpoint.pth.tar'))
         raise RuntimeError("Fail to generate target model!")
     
 
-query_list = ['random','jbtr3']
-attack_list = ['naive','top1','s4l','smoothing','ddae','ddae+','bayes']
+# query_list = ['random','jbtr3']
+# attack_list = ['naive','top1','s4l','smoothing','ddae','ddae+','bayes']
 # defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
-defense_list = ['queen']
+query_list = ['random']
+attack_list = ['naive']
+defense_list = ['none']
 
 for policy in query_list:
     if policy == 'jbtr3':
@@ -225,6 +227,7 @@ for policy in query_list:
                 out_dim=2
                 num_layers=4
                 step_down=4
+                num_shadows=10
                 shadow_arch='VGG11-BN'
                 out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{threshold}_k{k}"
                 # Parameters to defense strategy, provided as a key:value pair string. 

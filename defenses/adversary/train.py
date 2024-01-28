@@ -16,7 +16,6 @@ import torch
 from torch import optim
 
 
-sys.path.append(os.getcwd())
 import defenses.config as cfg
 import defenses.utils.model as model_utils
 from defenses import datasets

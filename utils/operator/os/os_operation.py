@@ -1,7 +1,3 @@
-'''
-@Author: M.H.C.
-@
-'''
 import os
 import subprocess
 

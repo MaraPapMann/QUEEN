@@ -1,5 +1,4 @@
 '''
-@Author: M.H.C.
 @Desc: Tensor operations.
 '''
 import torch

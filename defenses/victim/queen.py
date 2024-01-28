@@ -2,7 +2,6 @@
 @Desc: Query Unlearning.
 '''
 import sys
-sys.path.append('../..')
 from typing import Any
 from torch.nn import Module
 from torch.optim import Optimizer
@@ -110,9 +109,10 @@ class Queen(Blackbox):
             print('=> No mapping net. Training a mapping net from scratches...')
             opt.os.mkdir(opt.os.get_dir(self.pth_mapping_net))
             self.mapping_net.train()
-            num_ep = 20
+            print(self.mapping_net)
+            num_ep = 100
             bs = 5000
-            lr = 0.005
+            lr = 0.0001
             beta1, beta2 = 0.5, 0.8
             step_size, gamma = 100, 1
             optimizer = torch.optim.SGD(self.mapping_net.parameters(), lr, momentum=0.9, weight_decay=1e-4)
@@ -125,7 +125,7 @@ class Queen(Blackbox):
                 pbar.set_description('Ep: %d, Loss: nan'%ep)
                 for xs, ys in pbar:
                     xs = xs.to(self.device)
-                    print(xs)
+                    # print(xs.shape)
                     ys = ys.to(self.device)
 
                     self.mapping_net.zero_grad()
@@ -216,7 +216,7 @@ class Queen(Blackbox):
                 torch.save(trainer.classifier.state_dict(), opt.os.join(self.dir_shadow, f'{shadow_arch}_{i}_.pt'))
                 self.shadow_models.append(trainer.classifier)
             opt.os.rm_rf(dir_temp)
-            del dir_temp, trainer, fetcher, train_set, train_loader
+            del dir_temp, trainer, train_set, train_loader
         
         print('=> Queen initialization complete!')
     
@@ -465,7 +465,10 @@ class Queen(Blackbox):
         
         self.call_count += query_input.shape[0]
         
-        print('====== Cumulative Report: Query: %d, Within: %d, Recorded: %d, Reversed: %d ======'%(self.counter_query, self.counter_within, self.counter_record, self.counter_reverse))
+        std_out = '====== Cumulative Report: Query: %d, Within: %d, Recorded: %d, Reversed: %d ======\n'%(self.counter_query, self.counter_within, self.counter_record, self.counter_reverse)
+        with open(opt.os.join(self.out_dir, 'queen_log.txt'), 'a') as f:
+            f.write(std_out)
+            f.close()
         
         if return_origin:
             return softmax_falsified, softmax_protectee

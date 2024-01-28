@@ -23,7 +23,6 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, TensorDataset, Subset
 import torchvision
 
-sys.path.append(os.getcwd())
 from defenses import datasets
 import defenses.utils.model as model_utils
 import defenses.utils.utils as knockoff_utils

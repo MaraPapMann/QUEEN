@@ -2,8 +2,8 @@ import os
 import os.path as osp
 from os.path import dirname, abspath
 
-DEFAULT_SEED = 42
-DS_SEED = 123  # uses this seed when splitting datasets
+DEFAULT_SEED = 0
+DS_SEED = 0  # uses this seed when splitting datasets
 
 # -------------- Paths
 CONFIG_PATH = abspath(__file__)

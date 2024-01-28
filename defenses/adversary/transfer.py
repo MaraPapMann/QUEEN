@@ -23,7 +23,6 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import torchvision
 
-sys.path.append(os.getcwd())
 from defenses import datasets
 import defenses.utils.utils as knockoff_utils
 import defenses.config as cfg

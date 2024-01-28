@@ -1,6 +1,9 @@
 # Custom
 experiment
 models
+plot_res.ipynb
+plot
+development_log.ipynb
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
