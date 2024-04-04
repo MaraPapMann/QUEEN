@@ -3,6 +3,9 @@ import time
 
 class Timer():
     def __init__(self) -> None:
+        '''
+        Start time is set. Use end() to get the time.
+        '''
         self.start_time = time.time()
         self.end_time = None
         return
@@ -13,8 +16,11 @@ class Timer():
         return
     
     def end(self, desc:str=None) -> float:
-        assert self.end_time is None, 'The end time is not None!'
-        self.end_time = time.time()
+        # assert self.end_time is None, 'The end time is not None!'
+        if self.end_time is None:
+            self.end_time = time.time()
+        else:
+            raise ValueError('Please reset the timer.')
         T = self.get_time()
         if desc is not None:
             print(desc)

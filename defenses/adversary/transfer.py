@@ -314,6 +314,8 @@ def main():
         BB = Blackbox
     elif defense_type == 'queen':
         BB = Queen
+    elif defense_type == 'dp':
+        BB = DP
     else:
         raise ValueError('Unrecognized blackbox type')
     defense_kwargs = knockoff_utils.parse_defense_kwargs(params['defense_args'])

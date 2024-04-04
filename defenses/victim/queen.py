@@ -11,7 +11,7 @@ import tqdm
 import random
 import numpy as np
 from scipy.optimize import minimize
-from .blackbox import Blackbox
+from defenses.victim.blackbox import Blackbox
 import utils.operator as opt
 from defenses import datasets
 from torch.utils.data import DataLoader, TensorDataset
@@ -23,6 +23,7 @@ from utils.classifier import ClassifierTrainer
 from utils.data import DataFetcher
 from defenses import config as CFG
 from torch.autograd import detect_anomaly
+from utils.stats import Timer
 
 
 class Queen(Blackbox):
@@ -204,6 +205,7 @@ class Queen(Blackbox):
         else:
             print('No shadow models. Training shadow models...')
             dir_temp = opt.os.join(self.dir_shadow, 'temp')
+            timer = Timer()
             for i in range(self.num_shadows):
                 trainer = ClassifierTrainer(shadow_arch, self.num_classes, 'sgd', 'steplr', 0.01, 'crossentropy', dir_temp)
                 # fetcher = DataFetcher()
@@ -216,6 +218,8 @@ class Queen(Blackbox):
                 torch.save(trainer.classifier.state_dict(), opt.os.join(self.dir_shadow, f'{shadow_arch}_{i}_.pt'))
                 self.shadow_models.append(trainer.classifier)
             opt.os.rm_rf(dir_temp)
+            runtime = timer.get_time()
+            print('=> Time of training %d shadow models: %.2f seconds'%(self.num_shadows, runtime))
             del dir_temp, trainer, train_set, train_loader
         
         print('=> Queen initialization complete!')

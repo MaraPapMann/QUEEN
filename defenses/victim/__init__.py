@@ -18,3 +18,4 @@ from .quantize import incremental_kmeans
 
 ## Queen
 from .queen import Queen
+from .dp import DP

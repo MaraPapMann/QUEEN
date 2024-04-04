@@ -44,8 +44,8 @@ if not (os.path.exists(os.path.join(proj_path,vic_dir,'checkpoint.pth.tar'))
 # defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
 
 query_list = ['random']
-attack_list = ['naive']
-defense_list = ['rs','mad','am','top1','modelguard_w']
+attack_list = ['ddae+']
+defense_list = ['queen']
 
 for policy in query_list:
     if policy == 'jbtr3':
@@ -96,7 +96,7 @@ for policy in query_list:
             recover_proc=5
             recover_params=f"'table_size:{recover_table_size};concentration_factor:{concentration_factor};recover_proc:{recover_proc};recover_nn:1'"
         else:
-            recover_table_size=10000
+            recover_table_size=1000000
             recover_norm=1
             recover_tolerance=0.01
             concentration_factor=8.0
@@ -223,10 +223,10 @@ for policy in query_list:
             elif defense == 'queen':
                 strat='queen'
                 # Output path to attacker's model
-                lst_r=[0.001,0.005,0.01,0.05,0.1]
+                lst_r=[0.005]
                 lst_t=[0.2]
                 # threshold=0.2
-                k=5
+                lst_k=[5, 10]
                 in_dim=512
                 out_dim=2
                 num_layers=4
@@ -236,27 +236,35 @@ for policy in query_list:
                 host_network='vgg16-bn'
                 for r in lst_r:
                     for t in lst_t:
-                        out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{t}_k{k}"
-                # Parameters to defense strategy, provided as a key:value pair string. 
-                        defense_args=f"'out_path:{out_dir};r:{r};threshold:{t};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};num_shadows:{num_shadows};host_network:{host_network}'"
+                        for k in lst_k:
+                            out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/queen/r_{r}_threshold_{t}_k{k}"
+                            # Parameters to defense strategy, provided as a key:value pair string. 
+                            defense_args=f"'out_path:{out_dir};r:{r};threshold:{t};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};num_shadows:{num_shadows};host_network:{host_network}'"
 
-                        command_transfer = f"python defenses/adversary/transfer.py {policy} {vic_dir} {strat} {defense_args} --out_dir {out_dir} --batch_size {batch_size} -d {dev_id} --queryset {queryset} --budget {budget} --quantize {quantize} --quantize_args {quantize_args} --defense_aware {defense_aware} --recover_args {recover_params} --hardlabel {hardlabel} --train_transform {transform} --qpi {qpi}"
-                                        
-                        # (adversary) train kickoffnet and evaluate
-                        command_train = f"python defenses/adversary/train.py {out_dir} {f_v} {p_v} --budgets {budget} -e {epochs} -b {training_batch_size} --lr {lr} --lr_step {lr_step} --lr_gamma {lr_gamma} -d {dev_id} -w 4 --pretrained {pretrained} --vic_dir {vic_dir} --semitrainweight {semi_train_weight} --semidataset {semi_dataset}"
+                            command_transfer = f"python defenses/adversary/transfer.py {policy} {vic_dir} {strat} {defense_args} --out_dir {out_dir} --batch_size {batch_size} -d {dev_id} --queryset {queryset} --budget {budget} --quantize {quantize} --quantize_args {quantize_args} --defense_aware {defense_aware} --recover_args {recover_params} --hardlabel {hardlabel} --train_transform {transform} --qpi {qpi}"
+                                            
+                            # (adversary) train kickoffnet and evaluate
+                            command_train = f"python defenses/adversary/train.py {out_dir} {f_v} {p_v} --budgets {budget} -e {epochs} -b {training_batch_size} --lr {lr} --lr_step {lr_step} --lr_gamma {lr_gamma} -d {dev_id} -w 4 --pretrained {pretrained} --vic_dir {vic_dir} --semitrainweight {semi_train_weight} --semidataset {semi_dataset}"
 
-                        status = os.system(command_transfer)
-                        if status != 0:
-                            if not os.path.exists(os.path.join(out_dir,'params_transfer.json')):
-                                raise RuntimeError("Fail to generate transfer set with attack {} and defense {}".format('random_'+attack,defense))
-                        status = os.system(command_train)
-                        if status != 0:
-                            raise RuntimeError("Fail to train the substitute model with attack {} and defense {}".format('random_'+attack,defense))
+                            status = os.system(command_transfer)
+                            if status != 0:
+                                if not os.path.exists(os.path.join(out_dir,'params_transfer.json')):
+                                    raise RuntimeError("Fail to generate transfer set with attack {} and defense {}".format('random_'+attack,defense))
+                            status = os.system(command_train)
+                            if status != 0:
+                                raise RuntimeError("Fail to train the substitute model with attack {} and defense {}".format('random_'+attack,defense))
+            
+            elif defense == 'dp':
+                strat="dp"
+                epsilon=1.
+                # Output path to attacker's model
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/dp/epsilon{epsilon}"
+                defense_args=f"'epsilon:{epsilon};out_path:{out_dir}'"
             
             # skip some pairs
             if defense == 'none' and defense_aware==1:
                 continue
-            if attack == 'top1' and defense not in ['rs','am','queen']:
+            if attack == 'top1' and defense not in ['rs','am','queen', 'dp']:
                 continue
             if policy == 'jbtr3' and defense in ['s4l','smoothing']:
                 continue

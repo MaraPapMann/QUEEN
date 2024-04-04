@@ -40,9 +40,9 @@ if not (os.path.exists(os.path.join(proj_path,vic_dir,'checkpoint.pth.tar'))
 # query_list = ['random','jbtr3']
 # attack_list = ['naive','top1','s4l','smoothing','ddae','ddae+','bayes']
 # defense_list = ['none','rs','mad','am','top1','rounding','modelguard_w','modelguard_s']
-query_list = ['random']
-attack_list = ['naive']
-defense_list = ['none']
+query_list = ['random','jbtr3']
+attack_list = ['naive','top1','s4l','smoothing','ddae','ddae+','bayes']
+defense_list = ['dp']
 
 for policy in query_list:
     if policy == 'jbtr3':
@@ -233,10 +233,17 @@ for policy in query_list:
                 # Parameters to defense strategy, provided as a key:value pair string. 
                 defense_args=f"'out_path:{out_dir};r:{r};threshold:{threshold};k:{k};in_dim:{in_dim};out_dim:{out_dim};num_layers:{num_layers};step_down:{step_down};shadow_arch:{shadow_arch};'"
             
+            elif defense == 'dp':
+                strat="dp"
+                epsilon=1.
+                # Output path to attacker's model
+                out_dir=f"experiment/final_bb_dist/{p_v}-{f_v}/{policy}{policy_suffix}-{queryset}-B{budget}/dp/epsilon{epsilon}"
+                defense_args=f"'epsilon:{epsilon};out_path:{out_dir}'"
+            
             # skip some pairs
             if defense == 'none' and defense_aware==1:
                 continue
-            if attack == 'top1' and defense not in ['rs','am', 'queen']:
+            if attack == 'top1' and defense not in ['rs','am','queen', 'dp']:
                 continue
             if policy == 'jbtr3' and defense in ['s4l','smoothing']:
                 continue
